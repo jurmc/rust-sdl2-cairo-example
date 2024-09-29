@@ -1,61 +1,97 @@
 extern crate sdl2;
+extern crate cairo;
 
-use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::surface::Surface as SDLSurface;
+
+use cairo::ImageSurface;
+use cairo::Format;
+use cairo::Context;
+use cairo::Error;
+
+use std::f64::consts::PI;
 use std::time::Duration;
-use sdl2::image::LoadTexture;
 
-pub fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
+pub fn main() -> Result<(), Error> {
+    let sdl_ctx = sdl2::init().unwrap();
+    let video_subsystem = sdl_ctx.video().unwrap();
 
-    let window = video_subsystem.window("rust-sdl2 demo", 800, 600)
+    let window = video_subsystem.window("rust-sdl2-cairo-example", 640, 480)
         .position_centered()
         .build()
         .unwrap();
 
     let mut canvas = window.into_canvas().build().unwrap();
-    let texture_creator = canvas.texture_creator();
-    let texture = texture_creator.load_texture("dots.bmp").unwrap();
 
     canvas.clear();
-    canvas.set_draw_color(Color::RGB(0, 255, 255));
-    canvas.copy(&texture,None,None).unwrap();
 
+    let masks = PixelFormatEnum::BGRA32.into_masks().unwrap();
+    let sdl_surface = SDLSurface::from_pixelmasks(640, 480, &masks).unwrap();
+
+    let width = sdl_surface.width() as i32;
+    let height = sdl_surface.height() as i32;
+    let pitch = sdl_surface.pitch() as i32;
+
+    let cairo_surface: ImageSurface;
+    unsafe {
+        // TODO: maybe create_for_data(...) can be used, but how to pass 'data/pixels' param to it?
+        cairo_surface = ImageSurface::create_for_data_unsafe((*(sdl_surface.raw())).pixels as *mut u8, Format::ARgb32, width, height, pitch)
+            .expect("Couldn't create Cairo surface (using pixels from SDL surface)");
+    };
+    let cairo_ctx = Context::new(&cairo_surface).unwrap();
+
+    // White background
+    cairo_ctx.set_source_rgba(1.0, 1.0, 1.0, 1.0);
+    cairo_ctx.paint()?;
+
+    // Arc
+    let (xc, yc) = (320.0, 240.0);
+    let radius = 200.0;
+    let angle1 = 45.0  * (PI/180.0);
+    let angle2 = 180.0 * (PI/180.0);
+
+    cairo_ctx.set_source_rgba(0.0, 0.0, 0.0, 1.0);
+    cairo_ctx.set_line_width(10.0);
+    cairo_ctx.arc(xc, yc, radius, angle1, angle2);
+    cairo_ctx.stroke()?;
+
+    // Dot
+    cairo_ctx.set_source_rgba(1.0, 0.2, 0.2, 0.6);
+    cairo_ctx.set_line_width(6.0);
+
+    cairo_ctx.arc(xc, yc, 10.0, 0.0, 2.0 * PI);
+    cairo_ctx.fill()?;
+
+    // Lines
+    cairo_ctx.arc(xc, yc, radius, angle1, angle1);
+    cairo_ctx.line_to(xc, yc);
+    cairo_ctx.arc(xc, yc, radius, angle2, angle2);
+    cairo_ctx.line_to(xc, yc);
+    cairo_ctx.stroke()?;
+
+    cairo_surface.flush();
+
+    let texture_creator = canvas.texture_creator();
+    let new_texture = texture_creator.create_texture_from_surface(sdl_surface).unwrap();
+    canvas.copy(&new_texture,None,None).unwrap();
     canvas.present();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut i = 0;
+
+    let mut event_pump = sdl_ctx.event_pump().unwrap();
     'running: loop {
-        i = (i + 1) % 255;
-        //canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
-        //canvas.clear();
+        canvas.present();
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    break 'running
-                },
+                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                        break 'running
+                    },
                 _ => {}
             }
         }
-        // The rest of the game loop goes here...
-
-        //canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
-}
 
-//fn main() {
-//    let sdl_context = sdl2::init().unwrap();
-//    let video = sdl_context.video().unwrap();
-//    let window = video.window("SDL Tutorial 02", 640,480)
-//        .position_centered().opengl().build().unwrap();
-//    let mut canvas = window.into_canvas().build().unwrap();
-//
-//    let texture_creator = canvas.texture_creator();
-//    let texture = texture_creator.load_texture("assets/foo.bmp").unwrap();
-//    canvas.copy(&texture,None,None).unwrap();
-//    canvas.present();
-//    sleep(Duration::from_secs(2));
-//}
+    Ok(())
+}
