@@ -27,17 +27,17 @@ pub fn main() -> Result<(), Error> {
 
     canvas.clear();
 
-    let masks = PixelFormatEnum::BGRA32.into_masks().unwrap();
-    let sdl_surface = SDLSurface::from_pixelmasks(640, 480, &masks).unwrap();
+    let (width, height) = (640, 480);
 
-    let width = sdl_surface.width() as i32;
-    let height = sdl_surface.height() as i32;
+    let masks = PixelFormatEnum::BGRA32.into_masks().unwrap();
+    let sdl_surface = SDLSurface::from_pixelmasks(width, height, &masks).unwrap();
     let pitch = sdl_surface.pitch() as i32;
 
     let cairo_surface: ImageSurface;
     unsafe {
         // TODO: maybe create_for_data(...) can be used, but how to pass 'data/pixels' param to it?
-        cairo_surface = ImageSurface::create_for_data_unsafe((*(sdl_surface.raw())).pixels as *mut u8, Format::ARgb32, width, height, pitch)
+        cairo_surface = ImageSurface::create_for_data_unsafe((*(sdl_surface.raw())).pixels as *mut u8,
+                                                             Format::ARgb32, width as i32, height as i32, pitch)
             .expect("Couldn't create Cairo surface (using pixels from SDL surface)");
     };
     let cairo_ctx = Context::new(&cairo_surface).unwrap();
@@ -47,7 +47,7 @@ pub fn main() -> Result<(), Error> {
     cairo_ctx.paint()?;
 
     // Arc
-    let (xc, yc) = (320.0, 240.0);
+    let (xc, yc) = (width as f64 / 2.0, height as f64 / 2.0);
     let radius = 200.0;
     let angle1 = 45.0  * (PI/180.0);
     let angle2 = 180.0 * (PI/180.0);
