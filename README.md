@@ -12,3 +12,6 @@ cargo run
 ## Helpful Links
 - https://cairographics.org/SDL/
 - https://cairographics.org/samples/
+- https://docs.rs/sdl2/latest/sdl2/
+- https://gtk-rs.org/gtk-rs-core/stable/latest/docs/cairo/index.html
+
