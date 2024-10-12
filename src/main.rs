@@ -4,7 +4,6 @@ extern crate cairo;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::surface::Surface as SDLSurface;
 
 use cairo::ImageSurface;
 use cairo::Format;
@@ -13,33 +12,33 @@ use cairo::Error;
 
 use std::f64::consts::PI;
 use std::time::Duration;
+use std::mem;
 
 pub fn main() -> Result<(), Error> {
     let sdl_ctx = sdl2::init().unwrap();
     let video_subsystem = sdl_ctx.video().unwrap();
 
-    let window = video_subsystem.window("rust-sdl2-cairo-example", 640, 480)
+    const WIDTH: u32 = 640;
+    const HEIGHT: u32 = 480;
+    const DEPTH: u32 = 4;
+    const PITCH: u32 = WIDTH * DEPTH;
+
+    let window = video_subsystem.window("rust-sdl2-cairo-example", WIDTH, HEIGHT)
         .position_centered()
         .build()
         .unwrap();
-
     let mut canvas = window.into_canvas().build().unwrap();
-
     canvas.clear();
 
-    let (width, height) = (640, 480);
-
-    let masks = PixelFormatEnum::BGRA32.into_masks().unwrap();
-    let sdl_surface = SDLSurface::from_pixelmasks(width, height, &masks).unwrap();
-    let pitch = sdl_surface.pitch() as i32;
+    let mut pixels: [u8; (WIDTH * HEIGHT * DEPTH) as usize] = [0u8; (WIDTH * HEIGHT * DEPTH) as usize];
+    let texture_creator = canvas.texture_creator();
+    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::BGRA32, WIDTH, HEIGHT).unwrap();
 
     let cairo_surface: ImageSurface;
     unsafe {
-        // TODO: maybe create_for_data(...) can be used, but how to pass 'data/pixels' param to it?
-        cairo_surface = ImageSurface::create_for_data_unsafe((*(sdl_surface.raw())).pixels as *mut u8,
-                                                             Format::ARgb32, width as i32, height as i32, pitch)
+        cairo_surface = ImageSurface::create_for_data_unsafe(pixels[..].as_mut_ptr(), Format::ARgb32, 640, 480, (640 * 4 * mem::size_of::<u8>()) as i32)
             .expect("Couldn't create Cairo surface (using pixels from SDL surface)");
-    };
+        }
     let cairo_ctx = Context::new(&cairo_surface).unwrap();
 
     // White background
@@ -47,7 +46,7 @@ pub fn main() -> Result<(), Error> {
     cairo_ctx.paint()?;
 
     // Arc
-    let (xc, yc) = (width as f64 / 2.0, height as f64 / 2.0);
+    let (xc, yc) = (WIDTH as f64 / 2.0, HEIGHT as f64 / 2.0);
     let radius = 200.0;
     let angle1 = 45.0  * (PI/180.0);
     let angle2 = 180.0 * (PI/180.0);
@@ -73,9 +72,8 @@ pub fn main() -> Result<(), Error> {
 
     cairo_surface.flush();
 
-    let texture_creator = canvas.texture_creator();
-    let new_texture = texture_creator.create_texture_from_surface(sdl_surface).unwrap();
-    canvas.copy(&new_texture,None,None).unwrap();
+    texture.update(None, &pixels[..], PITCH as usize).unwrap();
+    canvas.copy(&texture, None, None).unwrap();
     canvas.present();
 
     let mut event_pump = sdl_ctx.event_pump().unwrap();
